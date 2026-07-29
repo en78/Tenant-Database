@@ -84,56 +84,61 @@ document.getElementById("personForm").addEventListener("submit", async (e) => {
 });
 
 
-// --- NEW: SEARCH LOGIC ---
+// --- UPDATED SEARCH LOGIC ---
 document.getElementById("searchForm").addEventListener("submit", async (e) => {
     e.preventDefault();
 
-    const searchName = document.getElementById("searchName").value.trim();
+    const searchName = document.getElementById("searchName").value.trim().toLowerCase();
     const searchDob = document.getElementById("searchDob").value;
     const resultsContainer = document.getElementById("searchResults");
     
     // Clear old results
     resultsContainer.innerHTML = "";
 
+    if (!searchName && !searchDob) {
+        alert("Please enter a name or DOB to search.");
+        return;
+    }
+
     try {
-        // 1. Build a reference to your collection
         const peopleRef = collection(db, "people");
-        let q;
+        let querySnapshot;
 
-        // 2. Build the query based on what the user provided
-        if (searchName && searchDob) {
-            // Search by both
-            q = query(peopleRef, where("name", "==", searchName), where("dob", "==", searchDob));
-        } else if (searchName) {
-            // Search by name only
-            q = query(peopleRef, where("name", "==", searchName));
-        } else if (searchDob) {
-            // Search by DOB only
-            q = query(peopleRef, where("dob", "==", searchDob));
+        // 1. If DOB is provided, filter by DOB in Firestore to minimize data pulled.
+        // Otherwise, fetch all documents to perform partial name filtering on client side.
+        if (searchDob) {
+            const q = query(peopleRef, where("dob", "==", searchDob));
+            querySnapshot = await getDocs(q);
         } else {
-            alert("Please enter a name or DOB to search.");
-            return;
+            querySnapshot = await getDocs(peopleRef);
         }
 
-        // 3. Execute the query
-        const querySnapshot = await getDocs(q);
+        let matchesFound = 0;
 
-        // 4. Display the results
-        if (querySnapshot.empty) {
-            resultsContainer.innerHTML = `<li class="list-group-item text-danger">No matching records found.</li>`;
-            return;
-        }
-
+        // 2. Filter records in JS for partial name matches
         querySnapshot.forEach((doc) => {
             const data = doc.data();
-            const li = document.createElement("li");
-            li.className = "list-group-item d-flex justify-content-between align-items-center";
-            li.innerHTML = `
-                <span><strong>Name:</strong> ${data.name}</span>
-                <span class="badge bg-secondary p-2">DOB: ${data.dob}</span>
-            `;
-            resultsContainer.appendChild(li);
+            const personName = (data.name || "").toLowerCase();
+
+            // Check if input substring exists in person's name
+            const matchesName = searchName ? personName.includes(searchName) : true;
+
+            if (matchesName) {
+                matchesFound++;
+                const li = document.createElement("li");
+                li.className = "list-group-item d-flex align-items-center gap-3";
+                li.innerHTML = `
+                  <span><strong>Name:</strong> ${data.name}</span>
+                  <span class="badge bg-secondary p-2">DOB: ${data.dob}</span>
+                `;
+                resultsContainer.appendChild(li);
+            }
         });
+
+        // 3. Display warning ONLY if zero actual matches were appended
+        if (matchesFound === 0) {
+            resultsContainer.innerHTML = `<li class="list-group-item text-danger">No matching records found.</li>`;
+        }
 
     } catch (error) {
         console.error("Error searching database: ", error);
