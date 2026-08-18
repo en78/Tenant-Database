@@ -179,6 +179,14 @@ document.getElementById("searchForm").addEventListener("submit", async (e) => {
     }
 });
 
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then(reg => console.log('Service Worker registered!'))
+        .catch(err => console.error('Service Worker failed:', err));
+    });
+  }
+
 </script>
 
 </body>
